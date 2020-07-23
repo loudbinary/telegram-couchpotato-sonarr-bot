@@ -6,7 +6,7 @@ var _               = require('lodash');                    // https://www.npmjs
 var fs              = require('fs');                        // https://nodejs.org/api/fs.html
 var NodeCache       = require('node-cache');                // https://www.npmjs.com/package/node-cache
 var TelegramBot     = require('node-telegram-bot-api');     // https://www.npmjs.com/package/node-telegram-bot-api
-
+var path            = require('path');   
 /*
  * libs
  */
@@ -145,6 +145,20 @@ bot.on('message', function(msg) {
   }
 
 
+  /*
+   * /movies command
+   */
+  if (/^\/[Ll](ist)? (.+)$/g.test(message)) {
+    if(isAuthorized(user.id)){
+      if (message.split(" ")[1] == "movies") {
+        return couchpotato.getMovieList();
+      } else if (message.split(" ")[1] == "tv") {
+          return sonarr.performLibrarySearch("");
+      }
+    } else {
+       return replyWithError(user.id, new Error(i18n.__('notAuthorized')));     
+    }
+  }
   /*
    * /film command
    */
@@ -707,8 +721,8 @@ function getTelegramName(user) {
  */
 function sendCommands(fromId) {
   var response = [i18n.__('hello') + ' ' + getTelegramName(fromId) + ' !'];
-  response.push(i18n.__('botChatHelp_1'));
-  response.push(i18n.__('botChatHelp_2'));
+  response.push(i18n.__('/list movies'));
+  response.push(i18n.__('/file <movie name>'));
   response.push(i18n.__('botChatHelp_3'));
   response.push(i18n.__('botChatHelp_4'));
   response.push(i18n.__('botChatHelp_5'));

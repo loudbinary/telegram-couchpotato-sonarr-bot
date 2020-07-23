@@ -101,13 +101,64 @@ CouchPotatoMessage.prototype.sendMoviesList = function(movieName) {
       self.cache.set('movieList' + self.user.id, movieList);
       self.cache.set('state' + self.user.id, state.couchpotato.CONFIRM);
       
-      return self._sendMessage(message.join('\n'), keyboardList);
+      return self._sendMessage(movieList.join('\n'), keyboardList);
       
     })
     .catch(function(error) {
       return self._sendMessage(error);
     });
 };
+
+CouchPotatoMessage.prototype.getMovieList = function () {
+  var self = this;
+  logger.info(i18n.__('logCouchPotatoQueryCommandSent', self.username));
+  self.couchpotato.get('media.list')
+    .then(function(result) {
+      logger.info('user: %s, message: all movies');
+
+      var response = [];
+      _.forEach(result.movies, function(n, key) {
+        var movieId = (n.info.imdb ? n.info.imdb : n.info.tmdb_id);
+        var onIMDb = (n.info.via_imdb ? true : false);
+        var movie = (onIMDb ? '[' + n.title + '](http://imdb.com/title/' + movieId + ')' : '[' + n.title + '](https://www.themoviedb.org/movie/' + movieId + ') - ' + n.info.year);
+
+        if (query) {
+          if (n.title.search( new RegExp(query, 'i') ) !== -1) {
+            response.push(movie);
+          }
+        } else {
+          response.push(movie);
+        }
+      });
+
+      if (!response.length) {
+        return replyWithError(fromId, new Error('Unable to locate ' + query + ' in couchpotato library'));
+      }
+
+      response.sort();
+      var query = 0
+      if (query) {
+        // add title to begining of the array
+        response.unshift('*Found matching results in CouchPotato library:*');
+      }
+
+      if (response.length > 50) {
+        var splitReponse = _.chunk(response, 50);
+        splitReponse.sort();
+        _.forEach(splitReponse, function(n) {
+          n.sort();
+          self._sendMessage( n.join('\n'));
+        });
+      } else {
+        self._sendMessage(response.join('\n'));
+      }
+    })
+    .catch(function(err) {
+      console.error(err);
+    })
+
+}
+
 
 CouchPotatoMessage.prototype.confirmMovieSelect = function(displayName) {
   var self = this;
@@ -117,7 +168,47 @@ CouchPotatoMessage.prototype.confirmMovieSelect = function(displayName) {
   if (!moviesList) {
     return self._sendMessage(new Error(i18n.__('errorSonarrWentWrong')));
   }
+
+  var selectedMovie = _.map(moviesList,((v,i,s)=>{
+    if (v.keyboard_value == displayName) {
+      return s[i]
+    }
+  }));
   
+  var cacheItems = [
+    'movieId', 'movieList', 'movieProfileList',
+    'state', 'revokedUserName', 'revokeUserList'
+  ];
+
+  var movie = _.filter(moviesList, function(item) { return item.keyboard_value === displayName; })[0];
+  let clearCache = function() {
+    return _(cacheItems).forEach(function(item) {
+      self.cache.del(item + self.user.id);
+    });
+  }
+
+  self.couchpotato.get('movie.add', {
+      'identifier': movie.movie_id,
+      'title': movie.title
+    })
+    .then(function(result) {
+      logger.info('user: %s, message: added movie "%s"', self.user.id, movie.title);
+
+      if (!result.success) {
+        throw new Error('could not add movie, try searching again.');
+      }
+
+
+      self._sendMessage('[Movie added!](' + movie.thumb + ')');
+    })
+    .catch(function(err) {
+      console.log(self.user.id, err);
+    })
+    .finally(function() {
+      console.log(self.user.id);
+    });
+
+
   // TO CONTINUE !!!!
   
 };
@@ -127,7 +218,7 @@ CouchPotatoMessage.prototype.confirmMovieSelect = function(displayName) {
  */
 CouchPotatoMessage.prototype._sendMessage = function(message, keyboard) {
   var self = this;
-  keyboard = keyboard || null;
+  keyboard = keyboard || [];
 
   var options;
   if (message instanceof Error) {
@@ -151,5 +242,35 @@ CouchPotatoMessage.prototype._sendMessage = function(message, keyboard) {
 
   return self.bot.sendMessage(self.user.id, message, options);
 };
+
+
+/*
+ * handle removing the custom keyboard
+ */
+function replyWithError(userId, err) {
+
+  logger.warn('user: %s message: %s', userId, err.message);
+
+  bot.sendMessage(userId, '*Oh no!* ' + err, {
+    'parse_mode': 'Markdown',
+    'reply_markup': {
+      'hide_keyboard': true
+    }
+  });
+}
+
+/*
+ * clear caches
+ */
+function clearCache(userId) {
+  var cacheItems = [
+    'movieId', 'movieList', 'movieProfileList',
+    'state', 'revokedUserName', 'revokeUserList'
+  ];
+
+  _(cacheItems).forEach(function(item) {
+    cache.del(item + userId);
+  });
+}
 
 module.exports = CouchPotatoMessage;
