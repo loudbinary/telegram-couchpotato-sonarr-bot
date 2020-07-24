@@ -21,7 +21,7 @@ var acl    = require(__dirname + '/lib/acl');           // set up the acl file
  */
 var SonarrMessage       = require(__dirname + '/modules/SonarrMessage');
 var CouchPotatoMessage  = require(__dirname + '/modules/CouchPotatoMessage');
-
+var Plex = require(__dirname + '/modules/Plex');
 /*
  * modules
  */
@@ -80,6 +80,7 @@ bot.on('message', function(msg) {
  
   var sonarr      = new SonarrMessage(bot, user, cache);
   var couchpotato = new CouchPotatoMessage(bot, user, cache);
+  var plex = new Plex(bot,user,cache);
 
   if (/^\/library\s?(.+)?$/g.test(message)) {
     if(isAuthorized(user.id)){
@@ -105,9 +106,12 @@ bot.on('message', function(msg) {
   }
 
   if(/^\/refresh$/g.test(message)) {
+    logger.info(i18n.__('botPlexMediaLibraryRfreshCommandStarted',user.id,"The library refresh function was called."));
     verifyAdmin(user.id);
     if(isAdmin(user.id)){
-      return sonarr.performLibraryRefresh();
+      plex.refreshAllLibraries(user,(message,user)=>{
+        bot.sendMessage(msg.chat.id, message);
+      });
     }
   }
 
@@ -150,10 +154,27 @@ bot.on('message', function(msg) {
    */
   if (/^\/[Ll](ist)? (.+)$/g.test(message)) {
     if(isAuthorized(user.id)){
+      var user = user;
       if (message.split(" ")[1] == "movies") {
-        return couchpotato.getMovieList();
+        //return couchpotato.getMovieList();
+         plex.getMovieLibraries("movies",user,(results,user)=>{
+            var message = [];
+           
+           
+            plex.getMoviesInLibrary(results[0],user,(movies,user) =>{
+              for (let index = 0; index < movies.length; index++) {
+                const v = movies[index];
+               // message.push(i18n.__(v.title + ' - Year: ' + v.year + ' - Rated:' + v.contentRating || "unknown" + ' - Stars: ' + v.audienceRating || "unknown"));
+               message.push(i18n.__(v.title + ' - Year: ' + v.year + ' - Stars: ' + v.audienceRating || "unknown"));
+                if (index == movies.length-1) {
+                  return bot.sendMessage(user.id,message.join('\n'));
+                }
+              }      
+           })
+           
+         })
       } else if (message.split(" ")[1] == "tv") {
-          return sonarr.performLibrarySearch("");
+          return sonarr.performLibrarySearch("tv");
       }
     } else {
        return replyWithError(user.id, new Error(i18n.__('notAuthorized')));     
@@ -699,7 +720,7 @@ function clearCache(userId) {
   });
 }
 
-/*
+/* 
  * get telegram name
  */
 function getTelegramName(user) {
@@ -721,23 +742,17 @@ function getTelegramName(user) {
  */
 function sendCommands(fromId) {
   var response = [i18n.__('hello') + ' ' + getTelegramName(fromId) + ' !'];
-  response.push(i18n.__('/list movies'));
-  response.push(i18n.__('/file <movie name>'));
-  response.push(i18n.__('botChatHelp_3'));
-  response.push(i18n.__('botChatHelp_4'));
-  response.push(i18n.__('botChatHelp_5'));
-  response.push(i18n.__('botChatHelp_6'));
-  response.push(i18n.__('botChatHelp_7'));
-  response.push(i18n.__('botChatHelp_8'));
+  response.push(i18n.__('/auth plex - Do this first, and only needed once - grants ability to add movies and tv.'));
+  response.push(i18n.__('/list movies - List all movies in Couchpotato'));
+  response.push(i18n.__('/film <movie name> - Add new Movie to Couchpotato for download'));
+  response.push(i18n.__('/serie <tv show> - Add new Television show to Sonarr for complete series management and downloads'));
+  response.push(i18n.__('/list movies - List all movies in Plex'));
+  response.push(i18n.__('/list tv - List all television shows in Plex'));
 
   if (isAdmin(fromId)) {
-    response.push(i18n.__('botChatHelp_9'));
-    response.push(i18n.__('botChatHelp_10'));
-    response.push(i18n.__('botChatHelp_11'));
-    response.push(i18n.__('botChatHelp_12'));
-    response.push(i18n.__('botChatHelp_13'));
-    response.push(i18n.__('botChatHelp_14'));
-    response.push(i18n.__('botChatHelp_15'));
+    response.push(i18n.__('Add some admin commands here later.  Placeholder.'));
+    response.push(i18n.__('/users'));
+    response.push(i18n.__('Read the readme in repo for more info...'));
   }
 
   //return bot.sendMessage(fromId, response.join('\n'), { 'parse_mode': 'Markdown', 'selective': 2 });

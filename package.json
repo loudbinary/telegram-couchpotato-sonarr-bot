@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "description": "A Telegram bot to interact with your Sonarr and CouchPotato Web Apps",
   "dependencies": {
+    "axios": "^0.19.2",
     "bluebird": "^3.4.7",
     "couchpotato-api": "^0.1.0",
     "fs-extra": "^2.0.0",
@@ -11,9 +12,11 @@
     "moment": "^2.17.1",
     "node-cache": "^4.1.1",
     "node-telegram-bot-api": "^0.25.0",
+    "read-xml": "^3.0.0",
     "request": "^2.79.0",
     "sonarr-api": "^0.1.2",
-    "winston": "^2.3.0"
+    "winston": "^2.3.0",
+    "xml2js": "^0.4.23"
   },
   "repository": "git://github.com/thibaudalt/telegram-couchpotato-sonarr-bot",
   "keywords": [
